@@ -4,6 +4,7 @@ export function drawStickman(ctx, { x, y, scale = 1, color = "#222", facing = 1,
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(scale * facing, scale);
+  ctx.translate(0, -10); // shift so (x, y) lands exactly on the feet, not 10 units above them
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
   ctx.lineWidth = 3;

@@ -126,9 +126,9 @@ export class Overworld {
     // Ground segments
     for (const seg of groundSegments) {
       ctx.fillStyle = "#3d8b40";
-      ctx.fillRect(seg.x1, GROUND_Y + 40, seg.x2 - seg.x1, h - GROUND_Y - 40);
+      ctx.fillRect(seg.x1, GROUND_Y, seg.x2 - seg.x1, h - GROUND_Y);
       ctx.fillStyle = "#5fb85f";
-      ctx.fillRect(seg.x1, GROUND_Y + 40, seg.x2 - seg.x1, 10);
+      ctx.fillRect(seg.x1, GROUND_Y, seg.x2 - seg.x1, 10);
     }
 
     // Goal flag
