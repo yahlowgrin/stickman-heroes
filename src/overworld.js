@@ -1,15 +1,15 @@
 import { isDown, wasPressed } from "./input.js";
 import { drawStickman } from "./draw.js";
-import { groundSegments, encounters, goalX, LEVEL_WIDTH, GROUND_Y, isOverGround } from "./levels.js";
+import { GROUND_Y, isOverGround } from "./levels.js";
 
 const GRAVITY = 1400;
 const MOVE_SPEED = 220;
 const JUMP_VELOCITY = -520;
-const PIT_RESPAWN_Y = -80;
 
 export class Overworld {
-  constructor(canvas) {
+  constructor(canvas, level) {
     this.canvas = canvas;
+    this.level = level;
     this.player = {
       x: 60,
       y: GROUND_Y,
@@ -26,7 +26,7 @@ export class Overworld {
   }
 
   triggerBattleForNearestEncounter() {
-    for (const enc of encounters) {
+    for (const enc of this.level.encounters) {
       if (enc.defeated) continue;
       if (Math.abs(enc.x - this.player.x) < 40) {
         return enc;
@@ -38,6 +38,7 @@ export class Overworld {
   update(dt, onEncounter) {
     this.t += dt;
     const p = this.player;
+    const level = this.level;
 
     let moving = false;
     if (isDown("ArrowLeft") || isDown("KeyA")) {
@@ -50,7 +51,7 @@ export class Overworld {
       p.facing = 1;
       moving = true;
     }
-    p.x = Math.max(0, Math.min(LEVEL_WIDTH, p.x));
+    p.x = Math.max(0, Math.min(level.width, p.x));
 
     if ((wasPressed("Space") || wasPressed("ArrowUp") || wasPressed("KeyW")) && p.onGround) {
       p.vy = JUMP_VELOCITY;
@@ -60,7 +61,7 @@ export class Overworld {
     p.vy += GRAVITY * dt;
     p.y += p.vy * dt;
 
-    const groundHere = isOverGround(p.x) ? GROUND_Y : null;
+    const groundHere = isOverGround(level, p.x) ? GROUND_Y : null;
     if (groundHere !== null && p.y >= groundHere) {
       p.y = groundHere;
       p.vy = 0;
@@ -83,7 +84,7 @@ export class Overworld {
 
     p.pose = !p.onGround ? "jump" : moving ? "walk" : "idle";
 
-    this.camera = Math.max(0, Math.min(LEVEL_WIDTH - this.canvas.width, p.x - this.canvas.width / 2));
+    this.camera = Math.max(0, Math.min(level.width - this.canvas.width, p.x - this.canvas.width / 2));
 
     if (this.messageTimer > 0) {
       this.messageTimer -= dt;
@@ -96,11 +97,11 @@ export class Overworld {
       return;
     }
 
-    if (p.x >= goalX && encounters.every((e) => e.defeated)) {
+    if (p.x >= level.goalX && level.encounters.every((e) => e.defeated)) {
       onEncounter({ victory: true });
-    } else if (p.x >= goalX) {
+    } else if (p.x >= level.goalX) {
       this.flashMessage("Defeat all enemies before reaching the end!");
-      p.x = goalX - 20;
+      p.x = level.goalX - 20;
     }
   }
 
@@ -109,22 +110,54 @@ export class Overworld {
     this.messageTimer = 2.5;
   }
 
+  renderBackground(ctx, w, h) {
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    if (this.level.background === "sunny") {
+      grad.addColorStop(0, "#4fb1e8");
+      grad.addColorStop(0.6, "#aee6ff");
+      grad.addColorStop(1, "#fff3cf");
+    } else {
+      grad.addColorStop(0, "#87ceeb");
+      grad.addColorStop(1, "#c9f0ff");
+    }
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    if (this.level.background === "sunny") {
+      // Sun sits fixed in screen space, unaffected by the camera scroll.
+      const sunX = w * 0.78;
+      const sunY = 90;
+      const rays = 12;
+      ctx.save();
+      ctx.strokeStyle = "rgba(255, 221, 120, 0.7)";
+      ctx.lineWidth = 4;
+      for (let i = 0; i < rays; i++) {
+        const angle = (i / rays) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(sunX + Math.cos(angle) * 45, sunY + Math.sin(angle) * 45);
+        ctx.lineTo(sunX + Math.cos(angle) * 70, sunY + Math.sin(angle) * 70);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#ffe066";
+      ctx.beginPath();
+      ctx.arc(sunX, sunY, 40, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
   render(ctx) {
     const w = this.canvas.width;
     const h = this.canvas.height;
+    const level = this.level;
 
-    // Sky gradient
-    const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, "#87ceeb");
-    grad.addColorStop(1, "#c9f0ff");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
+    this.renderBackground(ctx, w, h);
 
     ctx.save();
     ctx.translate(-this.camera, 0);
 
     // Ground segments
-    for (const seg of groundSegments) {
+    for (const seg of level.groundSegments) {
       ctx.fillStyle = "#3d8b40";
       ctx.fillRect(seg.x1, GROUND_Y, seg.x2 - seg.x1, h - GROUND_Y);
       ctx.fillStyle = "#5fb85f";
@@ -133,16 +166,16 @@ export class Overworld {
 
     // Goal flag
     ctx.fillStyle = "#f1c40f";
-    ctx.fillRect(goalX, GROUND_Y - 80, 6, 80);
+    ctx.fillRect(level.goalX, GROUND_Y - 80, 6, 80);
     ctx.beginPath();
-    ctx.moveTo(goalX + 6, GROUND_Y - 80);
-    ctx.lineTo(goalX + 40, GROUND_Y - 65);
-    ctx.lineTo(goalX + 6, GROUND_Y - 50);
+    ctx.moveTo(level.goalX + 6, GROUND_Y - 80);
+    ctx.lineTo(level.goalX + 40, GROUND_Y - 65);
+    ctx.lineTo(level.goalX + 6, GROUND_Y - 50);
     ctx.closePath();
     ctx.fill();
 
     // Encounter markers
-    for (const enc of encounters) {
+    for (const enc of level.encounters) {
       if (enc.defeated) continue;
       drawStickman(ctx, { x: enc.x, y: GROUND_Y, scale: 1.1, color: "#c0392b", pose: "idle", t: this.t });
     }
@@ -159,6 +192,12 @@ export class Overworld {
     });
 
     ctx.restore();
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "14px sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(level.name, w - 12, 24);
+    ctx.textAlign = "left";
 
     if (this.message) {
       ctx.fillStyle = "rgba(0,0,0,0.6)";

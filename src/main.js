@@ -2,7 +2,8 @@ import { Overworld } from "./overworld.js";
 import { Battle } from "./battle.js";
 import { Cutscene } from "./cutscene.js";
 import { createStartingSquad, createEnemyGroup } from "./entities.js";
-import { clearPresses } from "./input.js";
+import { LEVELS, instantiateLevel } from "./levels.js";
+import { clearPresses, wasPressed } from "./input.js";
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -10,9 +11,10 @@ const hud = document.getElementById("hud");
 
 const squad = createStartingSquad();
 let scene = "cutscene";
-let overworld = new Overworld(canvas);
+let levelIndex = 0;
+let overworld = new Overworld(canvas, instantiateLevel(levelIndex));
 let battle = null;
-let gameOverMessage = null;
+let endMessage = null;
 
 let cutscene = new Cutscene(canvas, () => {
   cutscene = null;
@@ -31,18 +33,29 @@ function onBattleEnd(result, encounter) {
     encounter.defeated = true;
     scene = "overworld";
   } else {
-    gameOverMessage = "Your squad was defeated. Refresh to try again.";
+    endMessage = "Your squad was defeated. Refresh to try again.";
     scene = "gameover";
   }
 }
 
 function handleEncounter(encounter) {
   if (encounter.victory) {
-    gameOverMessage = "You defeated the Warlord and cleared the level!";
-    scene = "win";
+    if (levelIndex < LEVELS.length - 1) {
+      endMessage = `${LEVELS[levelIndex].name} cleared! Press Enter to continue.`;
+      scene = "levelcomplete";
+    } else {
+      endMessage = "You defeated the Warlord and cleared the land!";
+      scene = "win";
+    }
     return;
   }
   startBattle(encounter);
+}
+
+function advanceToNextLevel() {
+  levelIndex += 1;
+  overworld = new Overworld(canvas, instantiateLevel(levelIndex));
+  scene = "overworld";
 }
 
 function updateHud() {
@@ -56,6 +69,16 @@ function updateHud() {
   } else {
     hud.innerHTML = "";
   }
+}
+
+function renderMessageScreen() {
+  ctx.fillStyle = "#111";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#fff";
+  ctx.font = "28px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(endMessage, canvas.width / 2, canvas.height / 2);
+  ctx.textAlign = "left";
 }
 
 let lastTime = performance.now();
@@ -74,14 +97,11 @@ function loop(now) {
     const activeBattle = battle;
     activeBattle.update(dt);
     activeBattle.render(ctx);
+  } else if (scene === "levelcomplete") {
+    renderMessageScreen();
+    if (wasPressed("Enter")) advanceToNextLevel();
   } else if (scene === "gameover" || scene === "win") {
-    ctx.fillStyle = "#111";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#fff";
-    ctx.font = "28px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(gameOverMessage, canvas.width / 2, canvas.height / 2);
-    ctx.textAlign = "left";
+    renderMessageScreen();
   }
 
   updateHud();
