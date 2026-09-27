@@ -32,6 +32,7 @@ export class Battle {
     this.animTimer = 0;
     this.result = null; // "victory" | "defeat"
     this.expGained = 0;
+    this.coinsGained = 0;
     this.levelResults = []; // [{ hero, levels }]
     this.pendingUnlocks = []; // [{ hero, skill }]
 
@@ -96,6 +97,7 @@ export class Battle {
       this.result = "victory";
       sfx.victory();
       this.expGained = this.enemies.reduce((s, e) => s + e.expReward, 0);
+      this.coinsGained = this.enemies.reduce((s, e) => s + Math.round(e.expReward / 2), 0);
       this.levelResults = [];
       this.pendingUnlocks = [];
       const share = Math.ceil(this.expGained / this.heroes.filter((h) => h.alive).length);
@@ -109,7 +111,7 @@ export class Battle {
           }
         }
       }
-      this.addLog("Victory! Gained " + this.expGained + " EXP.");
+      this.addLog(`Victory! Gained ${this.expGained} EXP and ${this.coinsGained} coins.`);
       return true;
     }
     return false;
@@ -263,7 +265,7 @@ export class Battle {
 
     if (this.phase === "DONE" && wasPressed("Enter")) {
       this.destroy();
-      this.onEnd(this.result, this.pendingUnlocks);
+      this.onEnd(this.result, this.pendingUnlocks, this.coinsGained);
     }
   }
 
@@ -348,7 +350,7 @@ export class Battle {
 
   renderResultPanel(ctx, w, h) {
     const survivors = this.heroes.filter((h) => h.alive);
-    const panelH = this.result === "victory" ? 90 + survivors.length * 18 + 20 : 100;
+    const panelH = this.result === "victory" ? 110 + survivors.length * 18 + 20 : 100;
     const top = h / 2 - panelH / 2;
 
     ctx.fillStyle = "rgba(0,0,0,0.8)";
@@ -362,6 +364,10 @@ export class Battle {
     ctx.font = "13px sans-serif";
     if (this.result === "victory") {
       ctx.fillText(`+${this.expGained} EXP shared across the squad`, w / 2, ly);
+      ly += 18;
+      ctx.fillStyle = "#ffe066";
+      ctx.fillText(`+${this.coinsGained} coins`, w / 2, ly);
+      ctx.fillStyle = "#fff";
       ly += 20;
       for (const hero of survivors) {
         const leveled = this.levelResults.some((r) => r.hero === hero);

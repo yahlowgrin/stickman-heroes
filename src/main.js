@@ -45,14 +45,17 @@ let cutscene = new Cutscene(canvas, () => {
 
 function startBattle(encounter) {
   const enemies = createEnemyGroup(encounter.kind);
-  battle = new Battle(canvas, squad, enemies, (result, pendingUnlocks) => onBattleEnd(result, pendingUnlocks, encounter));
+  battle = new Battle(canvas, squad, enemies, (result, pendingUnlocks, coinsGained) =>
+    onBattleEnd(result, pendingUnlocks, coinsGained, encounter)
+  );
   scene = "battle";
 }
 
-function onBattleEnd(result, pendingUnlocks, encounter) {
+function onBattleEnd(result, pendingUnlocks, coinsGained, encounter) {
   battle = null;
   if (result === "victory") {
     encounter.defeated = true;
+    coins += coinsGained ?? 0;
     if (pendingUnlocks && pendingUnlocks.length) {
       levelUpFlow = new LevelUpFlow(canvas, pendingUnlocks, () => {
         levelUpFlow = null;
