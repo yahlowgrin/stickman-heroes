@@ -88,7 +88,13 @@ function openWorldMap(justCleared = null) {
     if (choice.action === "shop") {
       openShop();
     } else if (choice.action === "level") {
-      travelToLevel(choice.levelIndex);
+      if (choice.levelIndex === levelIndex) {
+        // Already playing this level — resume it as-is instead of
+        // restarting it and losing which enemies are already defeated.
+        scene = "overworld";
+      } else {
+        travelToLevel(choice.levelIndex);
+      }
     } else {
       scene = "overworld";
     }
