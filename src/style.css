@@ -56,6 +56,24 @@ body {
   background: #23233a;
 }
 
+#map-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 168px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #0f0f1a;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#map-btn:hover {
+  background: #23233a;
+}
+
 #mute-btn {
   position: absolute;
   top: 12px;

@@ -14,6 +14,7 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const hud = document.getElementById("hud");
 const summaryBtn = document.getElementById("summary-btn");
+const mapBtn = document.getElementById("map-btn");
 const muteBtn = document.getElementById("mute-btn");
 
 const squad = createStartingSquad();
@@ -25,6 +26,8 @@ const wallet = {
   },
 };
 
+const levelCleared = LEVELS.map(() => false);
+
 let scene = "cutscene";
 let previousScene = "overworld";
 let levelIndex = 0;
@@ -34,10 +37,6 @@ let levelUpFlow = null;
 let worldMap = null;
 let shop = null;
 let endMessage = null;
-
-// After clearing this level, show the World Map hub (shop + branch onward)
-// instead of the usual "level cleared, press Enter" screen.
-const HUB_AFTER_LEVEL_INDEX = 1;
 
 let cutscene = new Cutscene(canvas, () => {
   cutscene = null;
@@ -71,28 +70,27 @@ function onBattleEnd(result, pendingUnlocks, encounter) {
 
 function handleEncounter(encounter) {
   if (encounter.victory) {
-    if (levelIndex === HUB_AFTER_LEVEL_INDEX) {
-      openWorldMap();
-    } else if (levelIndex < LEVELS.length - 1) {
-      endMessage = `${LEVELS[levelIndex].name} cleared! Press Enter to continue.`;
-      scene = "levelcomplete";
-    } else {
-      endMessage = "You defeated the Shadow Lord and saved the land!";
+    levelCleared[levelIndex] = true;
+    if (levelIndex === LEVELS.length - 1) {
+      endMessage = "You defeated the Shadow Lord and saved the land! Press Enter to continue.";
       scene = "win";
+    } else {
+      openWorldMap(LEVELS[levelIndex].name);
     }
     return;
   }
   startBattle(encounter);
 }
 
-function openWorldMap() {
-  const nextName = LEVELS[levelIndex + 1]?.name ?? null;
-  worldMap = new WorldMap(canvas, { clearedName: LEVELS[levelIndex].name, nextName, getCoins: wallet.getCoins }, (action) => {
+function openWorldMap(justCleared = null) {
+  worldMap = new WorldMap(canvas, { levelCleared, getCoins: wallet.getCoins, justCleared }, (choice) => {
     worldMap = null;
-    if (action === "shop") {
+    if (choice.action === "shop") {
       openShop();
-    } else if (action === "continue") {
-      advanceToNextLevel();
+    } else if (choice.action === "level") {
+      travelToLevel(choice.levelIndex);
+    } else {
+      scene = "overworld";
     }
   });
   scene = "worldmap";
@@ -106,36 +104,48 @@ function openShop() {
   scene = "shop";
 }
 
-function advanceToNextLevel() {
-  levelIndex += 1;
-  overworld = new Overworld(canvas, instantiateLevel(levelIndex));
+function travelToLevel(index) {
+  levelIndex = index;
+  overworld = new Overworld(canvas, instantiateLevel(index));
   scene = "overworld";
 }
 
 function toggleSummary() {
   if (scene === "summary") {
     scene = previousScene;
-  } else if (scene === "overworld" || scene === "levelcomplete") {
+  } else if (scene === "overworld") {
     previousScene = scene;
     scene = "summary";
   }
 }
 
-// Buttons keep keyboard focus after a click, and Space/Enter both activate a
-// focused button — so without this, clicking Squad Summary once meant every
-// later Space press (jump) or Enter press also re-fired it. Stop it from
-// ever taking focus in the first place.
-summaryBtn.addEventListener("mousedown", (e) => e.preventDefault());
-summaryBtn.addEventListener("click", () => {
-  toggleSummary();
-  summaryBtn.blur();
-});
+function toggleMap() {
+  if (scene === "worldmap") {
+    worldMap?.destroy();
+    worldMap = null;
+    scene = "overworld";
+  } else if (scene === "overworld") {
+    openWorldMap();
+  }
+}
 
-muteBtn.addEventListener("mousedown", (e) => e.preventDefault());
-muteBtn.addEventListener("click", () => {
+// Buttons keep keyboard focus after a click, and Space/Enter both activate a
+// focused button — so without this, clicking a button once meant every later
+// Space press (jump) or Enter press also re-fired it. Stop them from ever
+// taking focus in the first place.
+function wireButton(btn, handler) {
+  btn.addEventListener("mousedown", (e) => e.preventDefault());
+  btn.addEventListener("click", () => {
+    handler();
+    btn.blur();
+  });
+}
+
+wireButton(summaryBtn, toggleSummary);
+wireButton(mapBtn, toggleMap);
+wireButton(muteBtn, () => {
   const muted = toggleMuted();
   muteBtn.textContent = muted ? "🔇" : "🔊";
-  muteBtn.blur();
 });
 
 function updateMusic() {
@@ -144,7 +154,7 @@ function updateMusic() {
     playMusic(bg === "sunny" ? "sunny" : bg === "dusk" ? "dusk" : "overworld");
   } else if (scene === "battle") {
     playMusic("battle");
-  } else if (scene === "cutscene" || scene === "worldmap" || scene === "shop" || scene === "levelup" || scene === "levelcomplete") {
+  } else if (scene === "cutscene" || scene === "worldmap" || scene === "shop" || scene === "levelup") {
     playMusic("hub");
   } else {
     stopMusic();
@@ -184,6 +194,8 @@ function loop(now) {
     toggleSummary();
   } else if (scene === "summary" && wasPressed("Escape")) {
     toggleSummary();
+  } else if (scene === "overworld" && wasPressed("KeyM")) {
+    toggleMap();
   }
 
   if (scene === "cutscene" && cutscene) {
@@ -224,18 +236,20 @@ function loop(now) {
     const activeShop = shop;
     activeShop.update(dt);
     activeShop.render(ctx);
-  } else if (scene === "levelcomplete") {
+  } else if (scene === "gameover") {
     renderMessageScreen();
-    if (wasPressed("Enter")) advanceToNextLevel();
-  } else if (scene === "gameover" || scene === "win") {
+  } else if (scene === "win") {
     renderMessageScreen();
+    if (wasPressed("Enter")) openWorldMap();
   }
 
   updateHud();
   updateMusic();
-  // Hidden outside the overworld so it can never sit on top of (and steal
-  // clicks from) the battle menu, shop, or other canvas-drawn UI.
-  summaryBtn.style.display = scene === "overworld" || scene === "summary" || scene === "levelcomplete" ? "block" : "none";
+  // Hidden outside scenes where they're usable, so they can never sit on top
+  // of (and steal clicks from) the battle menu, shop, or other canvas UI.
+  const showHubButtons = scene === "overworld" || scene === "summary" || scene === "worldmap";
+  summaryBtn.style.display = scene === "overworld" || scene === "summary" ? "block" : "none";
+  mapBtn.style.display = showHubButtons ? "block" : "none";
   clearPresses();
   requestAnimationFrame(loop);
 }
