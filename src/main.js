@@ -3,6 +3,8 @@ import { Battle } from "./battle.js";
 import { Cutscene } from "./cutscene.js";
 import { LevelUpFlow } from "./levelup.js";
 import { renderSquadSummary } from "./summary.js";
+import { WorldMap } from "./worldmap.js";
+import { Shop } from "./shop.js";
 import { createStartingSquad, createEnemyGroup } from "./entities.js";
 import { LEVELS, instantiateLevel } from "./levels.js";
 import { clearPresses, wasPressed } from "./input.js";
@@ -13,13 +15,27 @@ const hud = document.getElementById("hud");
 const summaryBtn = document.getElementById("summary-btn");
 
 const squad = createStartingSquad();
+let coins = 0;
+const wallet = {
+  getCoins: () => coins,
+  spendCoins: (amount) => {
+    coins = Math.max(0, coins - amount);
+  },
+};
+
 let scene = "cutscene";
 let previousScene = "overworld";
 let levelIndex = 0;
 let overworld = new Overworld(canvas, instantiateLevel(levelIndex));
 let battle = null;
 let levelUpFlow = null;
+let worldMap = null;
+let shop = null;
 let endMessage = null;
+
+// After clearing this level, show the World Map hub (shop + branch onward)
+// instead of the usual "level cleared, press Enter" screen.
+const HUB_AFTER_LEVEL_INDEX = 1;
 
 let cutscene = new Cutscene(canvas, () => {
   cutscene = null;
@@ -53,16 +69,39 @@ function onBattleEnd(result, pendingUnlocks, encounter) {
 
 function handleEncounter(encounter) {
   if (encounter.victory) {
-    if (levelIndex < LEVELS.length - 1) {
+    if (levelIndex === HUB_AFTER_LEVEL_INDEX) {
+      openWorldMap();
+    } else if (levelIndex < LEVELS.length - 1) {
       endMessage = `${LEVELS[levelIndex].name} cleared! Press Enter to continue.`;
       scene = "levelcomplete";
     } else {
-      endMessage = "You defeated the Warlord and cleared the land!";
+      endMessage = "You defeated the Shadow Lord and saved the land!";
       scene = "win";
     }
     return;
   }
   startBattle(encounter);
+}
+
+function openWorldMap() {
+  const nextName = LEVELS[levelIndex + 1]?.name ?? null;
+  worldMap = new WorldMap(canvas, { clearedName: LEVELS[levelIndex].name, nextName, getCoins: wallet.getCoins }, (action) => {
+    worldMap = null;
+    if (action === "shop") {
+      openShop();
+    } else if (action === "continue") {
+      advanceToNextLevel();
+    }
+  });
+  scene = "worldmap";
+}
+
+function openShop() {
+  shop = new Shop(canvas, squad, wallet, () => {
+    shop = null;
+    openWorldMap();
+  });
+  scene = "shop";
 }
 
 function advanceToNextLevel() {
@@ -84,12 +123,13 @@ summaryBtn.addEventListener("click", toggleSummary);
 
 function updateHud() {
   if (scene === "overworld") {
-    hud.innerHTML = squad
-      .map(
-        (h) =>
-          `<div><strong>${h.name}</strong> Lv${h.level} — HP ${h.hp}/${h.maxHp} MP ${h.mp}/${h.maxMp}</div>`
-      )
-      .join("");
+    hud.innerHTML =
+      squad
+        .map(
+          (h) =>
+            `<div><strong>${h.name}</strong> Lv${h.level} — HP ${h.hp}/${h.maxHp} MP ${h.mp}/${h.maxMp}</div>`
+        )
+        .join("") + `<div>Coins: ${coins}</div>`;
   } else {
     hud.innerHTML = "";
   }
@@ -121,7 +161,9 @@ function loop(now) {
     activeCutscene.update(dt);
     activeCutscene.render(ctx);
   } else if (scene === "overworld") {
-    overworld.update(dt, handleEncounter);
+    overworld.update(dt, handleEncounter, (amount) => {
+      coins += amount;
+    });
     overworld.render(ctx);
   } else if (scene === "summary") {
     overworld.render(ctx);
@@ -134,6 +176,14 @@ function loop(now) {
     const activeFlow = levelUpFlow;
     activeFlow.update(dt);
     activeFlow.render(ctx);
+  } else if (scene === "worldmap" && worldMap) {
+    const activeMap = worldMap;
+    activeMap.update(dt);
+    activeMap.render(ctx);
+  } else if (scene === "shop" && shop) {
+    const activeShop = shop;
+    activeShop.update(dt);
+    activeShop.render(ctx);
   } else if (scene === "levelcomplete") {
     renderMessageScreen();
     if (wasPressed("Enter")) advanceToNextLevel();

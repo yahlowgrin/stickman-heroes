@@ -25,6 +25,7 @@ export const LEVELS = [
       { x: 3700, kind: "ogre", range: 50, speed: 25 },
       { x: 4500, kind: "boss", range: 40, speed: 20 },
     ],
+    coins: [],
     goalOffset: 100,
   },
   {
@@ -49,6 +50,41 @@ export const LEVELS = [
       { x: 4400, kind: "ogre", range: 50, speed: 30 },
       { x: 5000, kind: "sunboss", range: 40, speed: 20 },
     ],
+    coins: [
+      { x: 250, value: 5 },
+      { x: 900, value: 5 },
+      { x: 1500, value: 10 },
+      { x: 2350, value: 5 },
+      { x: 2650, value: 10 },
+      { x: 3200, value: 15 },
+      { x: 3900, value: 10 },
+      { x: 4550, value: 15 },
+      { x: 5050, value: 20 },
+    ],
+    goalOffset: 100,
+  },
+  {
+    name: "Shadow Keep",
+    width: 5000,
+    background: "dusk",
+    groundSegments: [
+      { x1: 0, x2: 850 },
+      { x1: 920, x2: 1650 },
+      { x1: 1720, x2: 2450 },
+      { x1: 2520, x2: 3250 },
+      { x1: 3320, x2: 4050 },
+      { x1: 4120, x2: 5000 },
+    ],
+    encounters: [
+      { x: 450, kind: "pack5", range: 70, speed: 55 },
+      { x: 1200, kind: "elite", range: 80, speed: 55 },
+      { x: 1950, kind: "wraiths", range: 90, speed: 65 },
+      { x: 2700, kind: "duoOgre", range: 60, speed: 30 },
+      { x: 3450, kind: "nightmare", range: 90, speed: 60 },
+      { x: 4200, kind: "elite", range: 70, speed: 55 },
+      { x: 4850, kind: "shadowlord", range: 40, speed: 25 },
+    ],
+    coins: [],
     goalOffset: 100,
   },
 ];
@@ -58,6 +94,7 @@ export function instantiateLevel(index) {
   return {
     ...def,
     encounters: def.encounters.map((e) => ({ ...e, defeated: false, currentX: e.x, dir: 1 })),
+    coins: def.coins.map((c) => ({ ...c, collected: false })),
     goalX: def.width - def.goalOffset,
   };
 }

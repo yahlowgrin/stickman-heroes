@@ -23,6 +23,20 @@ export class Overworld {
     this.t = 0;
     this.message = null;
     this.messageTimer = 0;
+
+    // Fixed star field for the "dusk" background, generated once so it
+    // doesn't reshuffle every frame.
+    this.stars = [];
+    if (level.background === "dusk") {
+      let seed = 1337;
+      const rand = () => {
+        seed = (seed * 9301 + 49297) % 233280;
+        return seed / 233280;
+      };
+      for (let i = 0; i < 60; i++) {
+        this.stars.push({ x: rand() * level.width, y: rand() * 260, r: rand() * 1.5 + 0.5 });
+      }
+    }
   }
 
   triggerBattleForNearestEncounter() {
@@ -49,7 +63,17 @@ export class Overworld {
     }
   }
 
-  update(dt, onEncounter) {
+  collectCoins(onCoinCollected) {
+    for (const coin of this.level.coins) {
+      if (coin.collected) continue;
+      if (Math.abs(coin.x - this.player.x) < 30) {
+        coin.collected = true;
+        onCoinCollected(coin.value);
+      }
+    }
+  }
+
+  update(dt, onEncounter, onCoinCollected) {
     this.t += dt;
     const p = this.player;
     const level = this.level;
@@ -99,6 +123,7 @@ export class Overworld {
     p.pose = !p.onGround ? "jump" : moving ? "walk" : "idle";
 
     this.updateEncounters(dt);
+    if (onCoinCollected) this.collectCoins(onCoinCollected);
 
     this.camera = Math.max(0, Math.min(level.width - this.canvas.width, p.x - this.canvas.width / 2));
 
@@ -132,6 +157,10 @@ export class Overworld {
       grad.addColorStop(0, "#4fb1e8");
       grad.addColorStop(0.6, "#aee6ff");
       grad.addColorStop(1, "#fff3cf");
+    } else if (this.level.background === "dusk") {
+      grad.addColorStop(0, "#0d0b2b");
+      grad.addColorStop(0.6, "#2c1f4a");
+      grad.addColorStop(1, "#5b3a5e");
     } else {
       grad.addColorStop(0, "#87ceeb");
       grad.addColorStop(1, "#c9f0ff");
@@ -159,6 +188,27 @@ export class Overworld {
       ctx.arc(sunX, sunY, 40, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+    } else if (this.level.background === "dusk") {
+      // Moon sits fixed in screen space, unaffected by the camera scroll.
+      ctx.save();
+      ctx.fillStyle = "#f5f3ce";
+      ctx.beginPath();
+      ctx.arc(w * 0.78, 90, 34, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#2c1f4a";
+      ctx.beginPath();
+      ctx.arc(w * 0.78 + 14, 80, 30, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  renderStars(ctx) {
+    ctx.fillStyle = "#fff";
+    for (const star of this.stars) {
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -171,6 +221,26 @@ export class Overworld {
 
     ctx.save();
     ctx.translate(-this.camera, 0);
+
+    if (this.stars.length) this.renderStars(ctx);
+
+    // Coins
+    for (const coin of level.coins) {
+      if (coin.collected) continue;
+      const bob = Math.sin(this.t * 3 + coin.x) * 4;
+      ctx.fillStyle = "#ffd700";
+      ctx.strokeStyle = "#a67c00";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(coin.x, GROUND_Y - 40 + bob, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#7a5c00";
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("$", coin.x, GROUND_Y - 36 + bob);
+      ctx.textAlign = "left";
+    }
 
     // Ground segments
     for (const seg of level.groundSegments) {

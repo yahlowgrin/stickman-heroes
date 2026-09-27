@@ -81,6 +81,12 @@ export class Hero extends Unit {
       this.skills[replaceIndex] = skill;
     }
   }
+
+  // The next move-pool skill not yet known, ignoring its level requirement —
+  // used by the shop, which lets you buy a move early.
+  getNextUnlearnedSkill() {
+    return this.movePool.find((entry) => !this.skills.some((s) => s.name === entry.skill.name)) ?? null;
+  }
 }
 
 export class Enemy extends Unit {
@@ -149,6 +155,9 @@ const ENEMY_TEMPLATES = {
   knight: () => new Enemy({ name: "Dark Knight", maxHp: 48, atk: 15, def: 6, spd: 7, color: "#37474f", expReward: 24 }),
   boss: () => new Enemy({ name: "Warlord", maxHp: 90, atk: 14, def: 6, spd: 5, color: "#3a0ca3", expReward: 60 }),
   sunboss: () => new Enemy({ name: "Sun Wyrm", maxHp: 140, atk: 18, def: 8, spd: 8, color: "#e65100", expReward: 100 }),
+  wraith: () => new Enemy({ name: "Wraith", maxHp: 44, atk: 17, def: 3, spd: 12, color: "#4a148c", expReward: 26 }),
+  shadowlord: () =>
+    new Enemy({ name: "Shadow Lord", maxHp: 180, atk: 22, def: 10, spd: 9, color: "#101015", expReward: 160 }),
 };
 
 const ENEMY_GROUPS = {
@@ -158,9 +167,13 @@ const ENEMY_GROUPS = {
   pack4: ["warg", "warg", "bandit"],
   pack5: ["shaman", "bandit", "warg"],
   ogre: ["ogre"],
+  duoOgre: ["ogre", "ogre"],
   elite: ["knight", "shaman"],
+  wraiths: ["wraith", "wraith"],
+  nightmare: ["wraith", "knight", "shaman"],
   boss: ["boss"],
   sunboss: ["sunboss"],
+  shadowlord: ["shadowlord"],
 };
 
 export function createEnemyGroup(kind) {

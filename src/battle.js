@@ -4,8 +4,16 @@ import { wasPressed } from "./input.js";
 const HERO_X = [150, 260, 370];
 const HERO_Y = 380;
 const ENEMY_BASE_X = 620;
-const ENEMY_Y = 300;
-const ENEMY_SPACING_Y = 90;
+// Enemies are laid out within this vertical band so they never overlap the
+// bottom log/menu panel, regardless of how many are in the group.
+const ENEMY_TOP_Y = 220;
+const ENEMY_BOTTOM_Y = 420;
+
+function enemyYPositions(count) {
+  if (count <= 1) return [(ENEMY_TOP_Y + ENEMY_BOTTOM_Y) / 2];
+  const step = (ENEMY_BOTTOM_Y - ENEMY_TOP_Y) / (count - 1);
+  return Array.from({ length: count }, (_, i) => ENEMY_TOP_Y + step * i);
+}
 
 export class Battle {
   constructor(canvas, heroes, enemies, onEnd) {
@@ -278,10 +286,11 @@ export class Battle {
     });
 
     // Enemies
+    const enemyYs = enemyYPositions(this.enemies.length);
     this.enemies.forEach((enemy, i) => {
       if (!enemy.alive) return;
       const x = ENEMY_BASE_X;
-      const y = ENEMY_Y + i * ENEMY_SPACING_Y;
+      const y = enemyYs[i];
       const pose = enemy === this.currentActor && this.phase === "ANIMATING" ? "attack" : "idle";
       drawStickman(ctx, { x, y, scale: 1.3, color: enemy.color, facing: -1, pose, t: this.t });
       drawHpBar(ctx, x - 30, y - 60, 60, 8, enemy.hp / enemy.maxHp, "#e67e22");
