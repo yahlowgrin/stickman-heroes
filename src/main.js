@@ -8,11 +8,13 @@ import { Shop } from "./shop.js";
 import { createStartingSquad, createEnemyGroup } from "./entities.js";
 import { LEVELS, instantiateLevel } from "./levels.js";
 import { clearPresses, wasPressed } from "./input.js";
+import { playMusic, stopMusic, toggleMuted } from "./audio.js";
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const hud = document.getElementById("hud");
 const summaryBtn = document.getElementById("summary-btn");
+const muteBtn = document.getElementById("mute-btn");
 
 const squad = createStartingSquad();
 let coins = 0;
@@ -119,7 +121,35 @@ function toggleSummary() {
   }
 }
 
-summaryBtn.addEventListener("click", toggleSummary);
+// Buttons keep keyboard focus after a click, and Space/Enter both activate a
+// focused button — so without this, clicking Squad Summary once meant every
+// later Space press (jump) or Enter press also re-fired it. Stop it from
+// ever taking focus in the first place.
+summaryBtn.addEventListener("mousedown", (e) => e.preventDefault());
+summaryBtn.addEventListener("click", () => {
+  toggleSummary();
+  summaryBtn.blur();
+});
+
+muteBtn.addEventListener("mousedown", (e) => e.preventDefault());
+muteBtn.addEventListener("click", () => {
+  const muted = toggleMuted();
+  muteBtn.textContent = muted ? "🔇" : "🔊";
+  muteBtn.blur();
+});
+
+function updateMusic() {
+  if (scene === "overworld" || scene === "summary") {
+    const bg = overworld.level.background;
+    playMusic(bg === "sunny" ? "sunny" : bg === "dusk" ? "dusk" : "overworld");
+  } else if (scene === "battle") {
+    playMusic("battle");
+  } else if (scene === "cutscene" || scene === "worldmap" || scene === "shop" || scene === "levelup" || scene === "levelcomplete") {
+    playMusic("hub");
+  } else {
+    stopMusic();
+  }
+}
 
 function updateHud() {
   if (scene === "overworld") {
@@ -202,6 +232,7 @@ function loop(now) {
   }
 
   updateHud();
+  updateMusic();
   // Hidden outside the overworld so it can never sit on top of (and steal
   // clicks from) the battle menu, shop, or other canvas-drawn UI.
   summaryBtn.style.display = scene === "overworld" || scene === "summary" || scene === "levelcomplete" ? "block" : "none";

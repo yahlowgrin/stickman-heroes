@@ -1,6 +1,7 @@
 import { isDown, wasPressed } from "./input.js";
 import { drawStickman } from "./draw.js";
 import { GROUND_Y, isOverGround } from "./levels.js";
+import { sfx } from "./audio.js";
 
 const GRAVITY = 1400;
 const MOVE_SPEED = 220;
@@ -73,6 +74,7 @@ export class Overworld {
       if (coin.collected) continue;
       if (Math.abs(coin.x - this.player.x) < 30) {
         coin.collected = true;
+        sfx.coin();
         onCoinCollected(coin.value);
       }
     }
@@ -105,6 +107,7 @@ export class Overworld {
 
       const hitPlayer = Math.abs(proj.x - this.player.x) < 22 && this.player.y > GROUND_Y - DODGE_HEIGHT;
       if (hitPlayer) {
+        sfx.spike();
         onSpikeHit(proj.damage);
         this.flashMessage(`A spike hit for ${proj.damage} damage!`);
         this.projectiles.splice(i, 1);
@@ -138,6 +141,7 @@ export class Overworld {
     if ((wasPressed("Space") || wasPressed("ArrowUp") || wasPressed("KeyW")) && p.onGround) {
       p.vy = JUMP_VELOCITY;
       p.onGround = false;
+      sfx.jump();
     }
 
     p.vy += GRAVITY * dt;

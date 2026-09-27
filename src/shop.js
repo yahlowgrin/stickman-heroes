@@ -1,5 +1,6 @@
 import { wasPressed } from "./input.js";
 import { MAX_SKILLS } from "./entities.js";
+import { sfx } from "./audio.js";
 
 const SHOP_ITEMS = [
   { id: "tonic", name: "Health Tonic", cost: 15, needsTarget: false, desc: "Fully heal & restore MP for the whole squad" },
@@ -139,6 +140,7 @@ export class Shop {
   finalizePurchase() {
     this.wallet.spendCoins(this.selectedItem.cost);
     this.flashMessage(`Purchased ${this.selectedItem.name}!`);
+    sfx.purchase();
     this.buildMenu();
   }
 

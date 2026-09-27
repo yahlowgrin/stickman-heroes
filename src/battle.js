@@ -1,5 +1,6 @@
 import { drawStickman, drawHpBar } from "./draw.js";
 import { wasPressed } from "./input.js";
+import { sfx } from "./audio.js";
 
 const HERO_X = [150, 260, 370];
 const HERO_Y = 380;
@@ -87,11 +88,13 @@ export class Battle {
       this.phase = "DONE";
       this.result = "defeat";
       this.addLog("Your squad has fallen...");
+      sfx.defeat();
       return true;
     }
     if (this.enemies.every((e) => !e.alive)) {
       this.phase = "DONE";
       this.result = "victory";
+      sfx.victory();
       this.expGained = this.enemies.reduce((s, e) => s + e.expReward, 0);
       this.levelResults = [];
       this.pendingUnlocks = [];
@@ -162,11 +165,13 @@ export class Battle {
       for (const t of this.heroes.filter((h) => h.alive)) t.heal(skill.healAll);
       this.addLog(`${actor.name} casts ${skill.name}, healing the whole squad!`);
     } else if (skill.hitAll) {
+      sfx.hit();
       for (const t of this.enemies.filter((e) => e.alive)) {
         const dmg = t.takeDamage(Math.round(actor.atk * skill.power));
         this.addLog(`${actor.name}'s ${skill.name} hits ${t.name} for ${dmg}.`);
       }
     } else if (skill.hitCount) {
+      sfx.hit();
       const alive = this.enemies.filter((e) => e.alive);
       for (let i = 0; i < skill.hitCount && alive.length; i++) {
         const t = alive[Math.floor(Math.random() * alive.length)];
@@ -186,6 +191,7 @@ export class Battle {
     const action = this.pendingAction;
 
     if (action.type === "attack") {
+      sfx.hit();
       const dmg = target.takeDamage(actor.atk);
       this.addLog(`${actor.name} hits ${target.name} for ${dmg}.`);
     } else if (action.type === "skill") {
@@ -195,6 +201,7 @@ export class Battle {
         target.heal(skill.heal);
         this.addLog(`${actor.name} casts ${skill.name}, healing ${target.name} for ${skill.heal}.`);
       } else {
+        sfx.hit();
         const dmg = target.takeDamage(Math.round(actor.atk * skill.power));
         this.addLog(`${actor.name} casts ${skill.name} on ${target.name} for ${dmg}!`);
       }
@@ -210,6 +217,7 @@ export class Battle {
     this.animTimer = 0.6;
     const aliveHeroes = this.heroes.filter((h) => h.alive);
     const target = aliveHeroes[Math.floor(Math.random() * aliveHeroes.length)];
+    sfx.hit();
     const dmg = target.takeDamage(enemy.atk);
     this.addLog(`${enemy.name} attacks ${target.name} for ${dmg}.`);
   }

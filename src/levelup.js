@@ -1,6 +1,7 @@
 import { drawStickman } from "./draw.js";
 import { wasPressed } from "./input.js";
 import { MAX_SKILLS } from "./entities.js";
+import { sfx } from "./audio.js";
 
 // Walks the player through a queue of { hero, skill } move unlocks after a
 // victory: learn the move, skip it, or (if the hero's moves are full) pick
@@ -19,6 +20,7 @@ export class LevelUpFlow {
     this._clickHandler = (e) => this.handleClick(e);
     canvas.addEventListener("click", this._clickHandler);
     this.buildPromptOptions();
+    sfx.levelUp();
   }
 
   destroy() {
