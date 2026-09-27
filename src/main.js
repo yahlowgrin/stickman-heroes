@@ -1,5 +1,6 @@
 import { Overworld } from "./overworld.js";
 import { Battle } from "./battle.js";
+import { Cutscene } from "./cutscene.js";
 import { createStartingSquad, createEnemyGroup } from "./entities.js";
 import { clearPresses } from "./input.js";
 
@@ -8,10 +9,15 @@ const ctx = canvas.getContext("2d");
 const hud = document.getElementById("hud");
 
 const squad = createStartingSquad();
-let scene = "overworld";
+let scene = "cutscene";
 let overworld = new Overworld(canvas);
 let battle = null;
 let gameOverMessage = null;
+
+let cutscene = new Cutscene(canvas, () => {
+  cutscene = null;
+  scene = "overworld";
+});
 
 function startBattle(encounter) {
   const enemies = createEnemyGroup(encounter.kind);
@@ -57,7 +63,11 @@ function loop(now) {
   const dt = Math.min(0.05, (now - lastTime) / 1000);
   lastTime = now;
 
-  if (scene === "overworld") {
+  if (scene === "cutscene" && cutscene) {
+    const activeCutscene = cutscene;
+    activeCutscene.update(dt);
+    activeCutscene.render(ctx);
+  } else if (scene === "overworld") {
     overworld.update(dt, handleEncounter);
     overworld.render(ctx);
   } else if (scene === "battle" && battle) {
