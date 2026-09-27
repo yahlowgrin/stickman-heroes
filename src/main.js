@@ -161,9 +161,19 @@ function loop(now) {
     activeCutscene.update(dt);
     activeCutscene.render(ctx);
   } else if (scene === "overworld") {
-    overworld.update(dt, handleEncounter, (amount) => {
-      coins += amount;
-    });
+    overworld.update(
+      dt,
+      handleEncounter,
+      (amount) => {
+        coins += amount;
+      },
+      (damage) => {
+        const aliveHeroes = squad.filter((h) => h.alive);
+        if (!aliveHeroes.length) return;
+        const target = aliveHeroes[Math.floor(Math.random() * aliveHeroes.length)];
+        target.takeDamage(damage);
+      }
+    );
     overworld.render(ctx);
   } else if (scene === "summary") {
     overworld.render(ctx);
@@ -192,6 +202,9 @@ function loop(now) {
   }
 
   updateHud();
+  // Hidden outside the overworld so it can never sit on top of (and steal
+  // clicks from) the battle menu, shop, or other canvas-drawn UI.
+  summaryBtn.style.display = scene === "overworld" || scene === "summary" || scene === "levelcomplete" ? "block" : "none";
   clearPresses();
   requestAnimationFrame(loop);
 }

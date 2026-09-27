@@ -5,6 +5,10 @@ import { GROUND_Y, isOverGround } from "./levels.js";
 const GRAVITY = 1400;
 const MOVE_SPEED = 220;
 const JUMP_VELOCITY = -520;
+const FLYER_HEIGHT = 130;
+const SPIKE_SPEED = 260;
+const SPIKE_TRAVEL_Y = 30; // how far above ground the spike flies, roughly torso height
+const DODGE_HEIGHT = 60; // jump at least this high above the ground to dodge a spike
 
 export class Overworld {
   constructor(canvas, level) {
@@ -23,6 +27,7 @@ export class Overworld {
     this.t = 0;
     this.message = null;
     this.messageTimer = 0;
+    this.projectiles = [];
 
     // Fixed star field for the "dusk" background, generated once so it
     // doesn't reshuffle every frame.
@@ -73,7 +78,46 @@ export class Overworld {
     }
   }
 
-  update(dt, onEncounter, onCoinCollected) {
+  // Flying enemies periodically hurl a spike toward the player if they're
+  // within range, dealing chip damage before you ever reach them in a
+  // battle. Jumping high enough dodges the hit.
+  updateFlyers(dt) {
+    for (const enc of this.level.encounters) {
+      if (enc.defeated || !enc.flying) continue;
+      enc.spikeTimer -= dt;
+      if (enc.spikeTimer <= 0) {
+        enc.spikeTimer = enc.spikeCooldown ?? 2.5;
+        const dist = Math.abs(enc.currentX - this.player.x);
+        if (dist < (enc.spikeRange ?? 350)) {
+          const dir = this.player.x >= enc.currentX ? 1 : -1;
+          this.projectiles.push({ x: enc.currentX, dir, damage: enc.spikeDamage ?? 5, traveled: 0 });
+        }
+      }
+    }
+  }
+
+  updateProjectiles(dt, onSpikeHit) {
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const proj = this.projectiles[i];
+      const step = SPIKE_SPEED * dt;
+      proj.x += proj.dir * step;
+      proj.traveled += step;
+
+      const hitPlayer = Math.abs(proj.x - this.player.x) < 22 && this.player.y > GROUND_Y - DODGE_HEIGHT;
+      if (hitPlayer) {
+        onSpikeHit(proj.damage);
+        this.flashMessage(`A spike hit for ${proj.damage} damage!`);
+        this.projectiles.splice(i, 1);
+        continue;
+      }
+
+      if (proj.traveled > 600) {
+        this.projectiles.splice(i, 1);
+      }
+    }
+  }
+
+  update(dt, onEncounter, onCoinCollected, onSpikeHit) {
     this.t += dt;
     const p = this.player;
     const level = this.level;
@@ -124,6 +168,10 @@ export class Overworld {
 
     this.updateEncounters(dt);
     if (onCoinCollected) this.collectCoins(onCoinCollected);
+    if (onSpikeHit) {
+      this.updateFlyers(dt);
+      this.updateProjectiles(dt, onSpikeHit);
+    }
 
     this.camera = Math.max(0, Math.min(level.width - this.canvas.width, p.x - this.canvas.width / 2));
 
@@ -266,13 +314,32 @@ export class Overworld {
       const pose = enc.range ? "walk" : "idle";
       drawStickman(ctx, {
         x: enc.currentX,
-        y: GROUND_Y,
+        y: enc.flying ? GROUND_Y - FLYER_HEIGHT : GROUND_Y,
         scale: 1.1,
-        color: "#c0392b",
+        color: enc.flying ? "#78909c" : "#c0392b",
         facing: enc.dir >= 0 ? 1 : -1,
         pose,
         t: this.t,
       });
+    }
+
+    // Spikes thrown by flying enemies
+    for (const proj of this.projectiles) {
+      const y = GROUND_Y - SPIKE_TRAVEL_Y;
+      ctx.save();
+      ctx.translate(proj.x, y);
+      ctx.rotate((proj.dir * Math.PI) / 2);
+      ctx.fillStyle = "#cfd8dc";
+      ctx.strokeStyle = "#37474f";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-12, 0);
+      ctx.lineTo(10, -5);
+      ctx.lineTo(10, 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
     }
 
     // Player

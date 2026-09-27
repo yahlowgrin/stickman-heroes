@@ -79,8 +79,10 @@ export const LEVELS = [
       { x: 450, kind: "pack5", range: 70, speed: 55 },
       { x: 1200, kind: "elite", range: 80, speed: 55 },
       { x: 1950, kind: "wraiths", range: 90, speed: 65 },
+      { x: 2350, kind: "skySquad", range: 100, speed: 45, flying: true, spikeDamage: 5, spikeRange: 380, spikeCooldown: 2.2 },
       { x: 2700, kind: "duoOgre", range: 60, speed: 30 },
       { x: 3450, kind: "nightmare", range: 90, speed: 60 },
+      { x: 3900, kind: "skySquad", range: 100, speed: 50, flying: true, spikeDamage: 6, spikeRange: 400, spikeCooldown: 2 },
       { x: 4200, kind: "elite", range: 70, speed: 55 },
       { x: 4850, kind: "shadowlord", range: 40, speed: 25 },
     ],
@@ -93,7 +95,13 @@ export function instantiateLevel(index) {
   const def = LEVELS[index];
   return {
     ...def,
-    encounters: def.encounters.map((e) => ({ ...e, defeated: false, currentX: e.x, dir: 1 })),
+    encounters: def.encounters.map((e) => ({
+      ...e,
+      defeated: false,
+      currentX: e.x,
+      dir: 1,
+      spikeTimer: e.flying ? (e.spikeCooldown ?? 2.5) * (0.5 + Math.random() * 0.5) : 0,
+    })),
     coins: def.coins.map((c) => ({ ...c, collected: false })),
     goalX: def.width - def.goalOffset,
   };
