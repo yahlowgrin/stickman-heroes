@@ -10,6 +10,7 @@ const FLYER_HEIGHT = 130;
 const SPIKE_SPEED = 260;
 const SPIKE_TRAVEL_Y = 30; // how far above ground the spike flies, roughly torso height
 const DODGE_HEIGHT = 60; // jump at least this high above the ground to dodge a spike
+const FALL_DAMAGE = 6;
 
 export class Overworld {
   constructor(canvas, level) {
@@ -98,7 +99,7 @@ export class Overworld {
     }
   }
 
-  updateProjectiles(dt, onSpikeHit) {
+  updateProjectiles(dt, onDamage) {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const proj = this.projectiles[i];
       const step = SPIKE_SPEED * dt;
@@ -108,7 +109,7 @@ export class Overworld {
       const hitPlayer = Math.abs(proj.x - this.player.x) < 22 && this.player.y > GROUND_Y - DODGE_HEIGHT;
       if (hitPlayer) {
         sfx.spike();
-        onSpikeHit(proj.damage);
+        onDamage(proj.damage);
         this.flashMessage(`A spike hit for ${proj.damage} damage!`);
         this.projectiles.splice(i, 1);
         continue;
@@ -120,7 +121,7 @@ export class Overworld {
     }
   }
 
-  update(dt, onEncounter, onCoinCollected, onSpikeHit) {
+  update(dt, onEncounter, onCoinCollected, onDamage) {
     this.t += dt;
     const p = this.player;
     const level = this.level;
@@ -157,11 +158,13 @@ export class Overworld {
     }
 
     if (p.y > GROUND_Y + 250) {
-      // Fell into a pit: respawn at the last safe spot.
+      // Fell into a pit: respawn at the last safe spot, with a bit of fall damage.
       p.x = Math.max(p.spawnX - 80, 40);
       p.y = GROUND_Y;
       p.vy = 0;
-      this.flashMessage("You fell! Watch out for pits.");
+      sfx.hit();
+      if (onDamage) onDamage(FALL_DAMAGE);
+      this.flashMessage(`You fell and took ${FALL_DAMAGE} damage! Watch out for pits.`);
     }
 
     if (p.onGround && groundHere !== null) {
@@ -172,9 +175,9 @@ export class Overworld {
 
     this.updateEncounters(dt);
     if (onCoinCollected) this.collectCoins(onCoinCollected);
-    if (onSpikeHit) {
+    if (onDamage) {
       this.updateFlyers(dt);
-      this.updateProjectiles(dt, onSpikeHit);
+      this.updateProjectiles(dt, onDamage);
     }
 
     this.camera = Math.max(0, Math.min(level.width - this.canvas.width, p.x - this.canvas.width / 2));
