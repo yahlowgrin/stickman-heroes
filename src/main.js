@@ -1,6 +1,8 @@
 import { Overworld } from "./overworld.js";
 import { Battle } from "./battle.js";
 import { Cutscene } from "./cutscene.js";
+import { LevelUpFlow } from "./levelup.js";
+import { renderSquadSummary } from "./summary.js";
 import { createStartingSquad, createEnemyGroup } from "./entities.js";
 import { LEVELS, instantiateLevel } from "./levels.js";
 import { clearPresses, wasPressed } from "./input.js";
@@ -8,12 +10,15 @@ import { clearPresses, wasPressed } from "./input.js";
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const hud = document.getElementById("hud");
+const summaryBtn = document.getElementById("summary-btn");
 
 const squad = createStartingSquad();
 let scene = "cutscene";
+let previousScene = "overworld";
 let levelIndex = 0;
 let overworld = new Overworld(canvas, instantiateLevel(levelIndex));
 let battle = null;
+let levelUpFlow = null;
 let endMessage = null;
 
 let cutscene = new Cutscene(canvas, () => {
@@ -23,15 +28,23 @@ let cutscene = new Cutscene(canvas, () => {
 
 function startBattle(encounter) {
   const enemies = createEnemyGroup(encounter.kind);
-  battle = new Battle(canvas, squad, enemies, (result) => onBattleEnd(result, encounter));
+  battle = new Battle(canvas, squad, enemies, (result, pendingUnlocks) => onBattleEnd(result, pendingUnlocks, encounter));
   scene = "battle";
 }
 
-function onBattleEnd(result, encounter) {
+function onBattleEnd(result, pendingUnlocks, encounter) {
   battle = null;
   if (result === "victory") {
     encounter.defeated = true;
-    scene = "overworld";
+    if (pendingUnlocks && pendingUnlocks.length) {
+      levelUpFlow = new LevelUpFlow(canvas, pendingUnlocks, () => {
+        levelUpFlow = null;
+        scene = "overworld";
+      });
+      scene = "levelup";
+    } else {
+      scene = "overworld";
+    }
   } else {
     endMessage = "Your squad was defeated. Refresh to try again.";
     scene = "gameover";
@@ -57,6 +70,17 @@ function advanceToNextLevel() {
   overworld = new Overworld(canvas, instantiateLevel(levelIndex));
   scene = "overworld";
 }
+
+function toggleSummary() {
+  if (scene === "summary") {
+    scene = previousScene;
+  } else if (scene === "overworld" || scene === "levelcomplete") {
+    previousScene = scene;
+    scene = "summary";
+  }
+}
+
+summaryBtn.addEventListener("click", toggleSummary);
 
 function updateHud() {
   if (scene === "overworld") {
@@ -86,6 +110,12 @@ function loop(now) {
   const dt = Math.min(0.05, (now - lastTime) / 1000);
   lastTime = now;
 
+  if ((scene === "overworld" || scene === "summary") && wasPressed("KeyS")) {
+    toggleSummary();
+  } else if (scene === "summary" && wasPressed("Escape")) {
+    toggleSummary();
+  }
+
   if (scene === "cutscene" && cutscene) {
     const activeCutscene = cutscene;
     activeCutscene.update(dt);
@@ -93,10 +123,17 @@ function loop(now) {
   } else if (scene === "overworld") {
     overworld.update(dt, handleEncounter);
     overworld.render(ctx);
+  } else if (scene === "summary") {
+    overworld.render(ctx);
+    renderSquadSummary(ctx, canvas, squad);
   } else if (scene === "battle" && battle) {
     const activeBattle = battle;
     activeBattle.update(dt);
     activeBattle.render(ctx);
+  } else if (scene === "levelup" && levelUpFlow) {
+    const activeFlow = levelUpFlow;
+    activeFlow.update(dt);
+    activeFlow.render(ctx);
   } else if (scene === "levelcomplete") {
     renderMessageScreen();
     if (wasPressed("Enter")) advanceToNextLevel();

@@ -28,11 +28,25 @@ export class Overworld {
   triggerBattleForNearestEncounter() {
     for (const enc of this.level.encounters) {
       if (enc.defeated) continue;
-      if (Math.abs(enc.x - this.player.x) < 40) {
+      if (Math.abs(enc.currentX - this.player.x) < 40) {
         return enc;
       }
     }
     return null;
+  }
+
+  updateEncounters(dt) {
+    for (const enc of this.level.encounters) {
+      if (enc.defeated || !enc.range) continue;
+      enc.currentX += enc.dir * enc.speed * dt;
+      if (enc.currentX >= enc.x + enc.range) {
+        enc.currentX = enc.x + enc.range;
+        enc.dir = -1;
+      } else if (enc.currentX <= enc.x - enc.range) {
+        enc.currentX = enc.x - enc.range;
+        enc.dir = 1;
+      }
+    }
   }
 
   update(dt, onEncounter) {
@@ -83,6 +97,8 @@ export class Overworld {
     }
 
     p.pose = !p.onGround ? "jump" : moving ? "walk" : "idle";
+
+    this.updateEncounters(dt);
 
     this.camera = Math.max(0, Math.min(level.width - this.canvas.width, p.x - this.canvas.width / 2));
 
@@ -174,10 +190,19 @@ export class Overworld {
     ctx.closePath();
     ctx.fill();
 
-    // Encounter markers
+    // Encounter markers, patrolling back and forth
     for (const enc of level.encounters) {
       if (enc.defeated) continue;
-      drawStickman(ctx, { x: enc.x, y: GROUND_Y, scale: 1.1, color: "#c0392b", pose: "idle", t: this.t });
+      const pose = enc.range ? "walk" : "idle";
+      drawStickman(ctx, {
+        x: enc.currentX,
+        y: GROUND_Y,
+        scale: 1.1,
+        color: "#c0392b",
+        facing: enc.dir >= 0 ? 1 : -1,
+        pose,
+        t: this.t,
+      });
     }
 
     // Player

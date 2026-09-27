@@ -21,10 +21,10 @@ export class Battle {
     this.targetOptions = [];
     this.pendingAction = null;
     this.animTimer = 0;
-    this.actorAnim = null; // { unit, pose }
     this.result = null; // "victory" | "defeat"
     this.expGained = 0;
-    this.leveledHeroes = [];
+    this.levelResults = []; // [{ hero, levels }]
+    this.pendingUnlocks = []; // [{ hero, skill }]
 
     this.queue = [];
     this.currentActor = null;
@@ -85,11 +85,18 @@ export class Battle {
       this.phase = "DONE";
       this.result = "victory";
       this.expGained = this.enemies.reduce((s, e) => s + e.expReward, 0);
-      this.leveledHeroes = [];
+      this.levelResults = [];
+      this.pendingUnlocks = [];
       const share = Math.ceil(this.expGained / this.heroes.filter((h) => h.alive).length);
       for (const h of this.heroes) {
         if (!h.alive) continue;
-        if (h.gainExp(share)) this.leveledHeroes.push(h.name);
+        const levels = h.gainExp(share);
+        if (levels.length) {
+          this.levelResults.push({ hero: h, levels });
+          for (const unlock of h.getUnlocksForLevels(levels)) {
+            this.pendingUnlocks.push({ hero: h, skill: unlock.skill });
+          }
+        }
       }
       this.addLog("Victory! Gained " + this.expGained + " EXP.");
       return true;
@@ -101,7 +108,16 @@ export class Battle {
     this.phase = "MENU";
     const options = [{ label: "Attack", type: "attack" }];
     for (const skill of hero.skills) {
-      options.push({ label: `${skill.name} (${skill.mpCost} MP)`, type: "skill", skill, disabled: hero.mp < skill.mpCost });
+      let tag = "";
+      if (skill.hitAll) tag = " [All]";
+      else if (skill.healAll) tag = " [All]";
+      else if (skill.hitCount) tag = ` [x${skill.hitCount}]`;
+      options.push({
+        label: `${skill.name}${tag} (${skill.mpCost} MP)`,
+        type: "skill",
+        skill,
+        disabled: hero.mp < skill.mpCost,
+      });
     }
     options.push({ label: "Defend", type: "defend" });
     this.menuOptions = options;
@@ -117,11 +133,44 @@ export class Battle {
       this.pendingAction = null;
       return;
     }
+
+    if (option.type === "skill" && (option.skill.hitAll || option.skill.hitCount || option.skill.healAll)) {
+      this.resolveAreaSkill(option.skill);
+      return;
+    }
+
     this.pendingAction = option;
     this.phase = "TARGET";
     this.targetOptions = option.skill?.heal
       ? this.heroes.filter((h) => h.alive)
       : this.enemies.filter((e) => e.alive);
+  }
+
+  resolveAreaSkill(skill) {
+    const actor = this.currentActor;
+    actor.mp -= skill.mpCost;
+
+    if (skill.healAll) {
+      for (const t of this.heroes.filter((h) => h.alive)) t.heal(skill.healAll);
+      this.addLog(`${actor.name} casts ${skill.name}, healing the whole squad!`);
+    } else if (skill.hitAll) {
+      for (const t of this.enemies.filter((e) => e.alive)) {
+        const dmg = t.takeDamage(Math.round(actor.atk * skill.power));
+        this.addLog(`${actor.name}'s ${skill.name} hits ${t.name} for ${dmg}.`);
+      }
+    } else if (skill.hitCount) {
+      const alive = this.enemies.filter((e) => e.alive);
+      for (let i = 0; i < skill.hitCount && alive.length; i++) {
+        const t = alive[Math.floor(Math.random() * alive.length)];
+        const dmg = t.takeDamage(Math.round(actor.atk * skill.power));
+        this.addLog(`${actor.name}'s ${skill.name} hits ${t.name} for ${dmg}.`);
+        if (!t.alive) alive.splice(alive.indexOf(t), 1);
+      }
+    }
+
+    this.phase = "ANIMATING";
+    this.animTimer = 0.6;
+    this.pendingAction = null;
   }
 
   chooseTarget(target) {
@@ -198,7 +247,7 @@ export class Battle {
 
     if (this.phase === "DONE" && wasPressed("Enter")) {
       this.destroy();
-      this.onEnd(this.result);
+      this.onEnd(this.result, this.pendingUnlocks);
     }
   }
 
@@ -276,21 +325,38 @@ export class Battle {
         ctx.fillText(`${i + 1}. ${unit.name} (${unit.hp}/${unit.maxHp})`, rect.x + 6, rect.y + 15);
       });
     } else if (this.phase === "DONE") {
-      ctx.fillStyle = "rgba(0,0,0,0.75)";
-      ctx.fillRect(w / 2 - 220, h / 2 - 70, 440, 140);
-      ctx.fillStyle = "#fff";
-      ctx.font = "24px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(this.result === "victory" ? "VICTORY!" : "DEFEAT...", w / 2, h / 2 - 20);
-      ctx.font = "14px sans-serif";
-      if (this.result === "victory") {
-        ctx.fillText(`+${this.expGained} EXP`, w / 2, h / 2 + 6);
-        if (this.leveledHeroes.length) {
-          ctx.fillText(`Level up: ${this.leveledHeroes.join(", ")}`, w / 2, h / 2 + 26);
-        }
-      }
-      ctx.fillText("Press Enter to continue", w / 2, h / 2 + 50);
-      ctx.textAlign = "left";
+      this.renderResultPanel(ctx, w, h);
     }
+  }
+
+  renderResultPanel(ctx, w, h) {
+    const survivors = this.heroes.filter((h) => h.alive);
+    const panelH = this.result === "victory" ? 90 + survivors.length * 18 + 20 : 100;
+    const top = h / 2 - panelH / 2;
+
+    ctx.fillStyle = "rgba(0,0,0,0.8)";
+    ctx.fillRect(w / 2 - 240, top, 480, panelH);
+    ctx.fillStyle = "#fff";
+    ctx.font = "24px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(this.result === "victory" ? "VICTORY!" : "DEFEAT...", w / 2, top + 34);
+
+    let ly = top + 58;
+    ctx.font = "13px sans-serif";
+    if (this.result === "victory") {
+      ctx.fillText(`+${this.expGained} EXP shared across the squad`, w / 2, ly);
+      ly += 20;
+      for (const hero of survivors) {
+        const leveled = this.levelResults.some((r) => r.hero === hero);
+        const text = `${hero.name} Lv${hero.level} — ${hero.exp}/${hero.expToNext} EXP to next${leveled ? "  (Leveled up!)" : ""}`;
+        ctx.fillStyle = leveled ? "#ffe066" : "#fff";
+        ctx.fillText(text, w / 2, ly);
+        ly += 18;
+      }
+      ctx.fillStyle = "#fff";
+      ly += 6;
+    }
+    ctx.fillText("Press Enter to continue", w / 2, ly);
+    ctx.textAlign = "left";
   }
 }

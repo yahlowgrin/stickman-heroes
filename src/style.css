@@ -37,3 +37,21 @@ body {
   font-size: 14px;
   text-shadow: 1px 1px 2px #000;
 }
+
+#summary-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #0f0f1a;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#summary-btn:hover {
+  background: #23233a;
+}
